@@ -33,13 +33,24 @@ list_distribution_links <- function(distributionID, surveyID){
                                              surveyId = surveyID)
 
   elements <- list()
-
+  iter <- 1
   while(!is.null(fetch_url)){
-
-    res <- qualtrics_api_request("GET", url = fetch_url)
+    tryCatch({
+      attempt_fetch <- 1
+      while(attempt_fetch != 4){
+        message(paste0("Iteration ", iter, " - attempt ", attempt_fetch, " of 4"))
+        try(res <- qualtrics_api_request("GET", url = fetch_url))
+        if (class(res)[1] == "try-error") {
+          Sys.sleep(5) ## Wait 5 seconds so that transient connection issues can go away
+          attempt_fetch <- attempt_fetch + 1
+        } else {
+          break
+        }
+      }
+    })
     elements <- append(elements, res$result$elements)
     fetch_url <- res$result$nextPage
-
+    iter <- iter + 1
   }
 
   x <- tibble::tibble(contactId = purrr::map_chr(elements, "contactId", .default = NA_character_),
