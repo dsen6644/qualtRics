@@ -32,13 +32,23 @@ fetch_distribution_history <- function(distributionID, surveyID){
                                                distributionId = distributionID)
 
   elements <- list()
-
-  while(!is.null(fetch_url)){
-
-    res <- qualtrics_api_request("GET", url = fetch_url)
+  iter <- 1
+  while(!is.null(fetch_url)){tryCatch({
+    attempt_fetch <- 1
+    while(attempt_fetch != 4){
+      message(paste0("Iteration ", iter, " - attempt ", attempt_fetch, " of 4"))
+      try(res <- qualtrics_api_request("GET", url = fetch_url))
+      if (class(res)[1] == "try-error") {
+        Sys.sleep(5) ## Wait 5 seconds so that transient connection issues can go away
+        attempt_fetch <- attempt_fetch + 1
+      } else {
+        break
+      }
+    }
+  })
     elements <- append(elements, res$result$elements)
     fetch_url <- res$result$nextPage
-
+    iter <- iter + 1
   }
 
   x <- tibble::tibble(contactId = purrr::map_chr(elements, "contactId", .default = NA_character_),
@@ -53,15 +63,15 @@ fetch_distribution_history <- function(distributionID, surveyID){
                       openedAt = purrr::map_chr(elements, "openedAt", .default = NA_character_),
                       responseStartedAt = purrr::map_chr(elements, "responseStartedAt", .default = NA_character_),
                       surveySessionId = purrr::map_chr(elements, "surveySessionId", .default = NA_character_))
-
-  links <- list_distribution_links(base_url = Sys.getenv("QUALTRICS_BASE_URL"),
-                                   distributionID = distributionID,
-                                   surveyID = surveyID)
-
-  links <- dplyr::select(links, contactId, email, linkExpiration, lastName,
-                         firstName, externalDataReference, unsubscribed)
-
-  x <- dplyr::left_join(x, links, by = "contactId")
+# message("links")
+#   links <- list_distribution_links(#base_url = Sys.getenv("QUALTRICS_BASE_URL"),
+#                                    distributionID = distributionID,
+#                                    surveyID = surveyID)
+#
+#   links <- dplyr::select(links, contactId, email, linkExpiration, lastName,
+#                          firstName, externalDataReference, unsubscribed)
+#
+#   x <- dplyr::left_join(x, links, by = "contactId")
 
   return(x)
 
